@@ -25,7 +25,8 @@ async fn server() {
         .route("/api/user/create", post(create_user))
         .route("/api/user/login", post(login_user))
         .route("/api/user/{uuid}/update", put(update_user))
-        .route("/api/user/{uuid}/delete", delete(delete_user));
+        .route("/api/user/{uuid}/delete", delete(delete_user))
+        .route("/api/users", get(get_users));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, router).await.unwrap();
@@ -144,4 +145,27 @@ async fn delete_user(Path(uuid): Path<Uuid>) -> impl IntoResponse {
     db.close().await.unwrap();
 
     (StatusCode::OK, Json("deleted"))
+}
+
+async fn get_users() -> impl IntoResponse {
+    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
+        .await
+        .unwrap();
+
+    let users: Vec<User> = entity::user::Entity::find()
+        .all(&db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|user| User {
+            name: user.name,
+            email: user.email,
+            password: user.password,
+            uuid: user.uuid,
+            created_at: user.created_at,
+        })
+        .collect();
+
+    db.close().await.unwrap();
+    (StatusCode::OK, Json(users))
 }
