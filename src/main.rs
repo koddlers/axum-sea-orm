@@ -5,7 +5,7 @@ use axum;
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{get, post, put};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use chrono::Utc;
 use entity::user;
@@ -13,7 +13,6 @@ use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, Database, EntityTrait, QueryFilter};
 use sea_query::Condition;
 use uuid::Uuid;
-use entity::user::{ActiveModel, Model};
 
 #[tokio::main]
 async fn main() {
@@ -25,7 +24,8 @@ async fn server() {
         .route("/api/test", get(test))
         .route("/api/user/create", post(create_user))
         .route("/api/user/login", post(login_user))
-        .route("/api/user/{uuid}/update", put(update_user));
+        .route("/api/user/{uuid}/update", put(update_user))
+        .route("/api/user/{uuid}/delete", delete(delete_user));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, router).await.unwrap();
@@ -53,7 +53,15 @@ async fn create_user(Json(data): Json<UserCreateModel>) -> impl IntoResponse {
     let data = user.insert(&db).await.unwrap();
     db.close().await.unwrap();
 
-    (StatusCode::ACCEPTED, data.name)
+    let user = User {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        uuid: data.uuid,
+        created_at: data.created_at,
+    };
+
+    (StatusCode::ACCEPTED, Json(user))
 }
 
 async fn login_user(Json(data): Json<UserLoginModel>) -> impl IntoResponse {
@@ -115,4 +123,25 @@ async fn update_user(
     };
 
     (StatusCode::ACCEPTED, Json(response))
+}
+
+async fn delete_user(Path(uuid): Path<Uuid>) -> impl IntoResponse {
+    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
+        .await
+        .unwrap();
+
+    let user = entity::user::Entity::find()
+        .filter(entity::user::Column::Uuid.eq(uuid))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+
+    entity::user::Entity::delete_by_id(user.id)
+        .exec(&db)
+        .await
+        .unwrap();
+    db.close().await.unwrap();
+
+    (StatusCode::OK, Json("deleted"))
 }
