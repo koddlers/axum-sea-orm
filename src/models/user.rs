@@ -23,3 +23,8 @@ pub struct UserLoginModel {
     pub email: String,
     pub password: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct UserUpdateModel {
+    pub name: String,
+}
