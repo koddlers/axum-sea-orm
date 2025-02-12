@@ -12,8 +12,14 @@ pub struct User {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct UserCreate {
+pub struct UserCreateModel {
     pub name: String,
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserLoginModel {
     pub email: String,
     pub password: String,
 }
