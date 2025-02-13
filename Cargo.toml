@@ -18,3 +18,4 @@ serde = "1.0.217"
 sea-query = "0.32.1"
 tower-http = { version = "0.6.2", features = ["cors"] }
 dotenv = "0.15.0"
+lazy_static = "1.5.0"

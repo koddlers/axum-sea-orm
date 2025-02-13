@@ -2,19 +2,18 @@ use crate::models::user::{User, UserUpdateModel};
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
+use axum::{Extension, Json};
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, ColumnTrait, Database, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+};
 use uuid::Uuid;
 
 pub async fn update_user(
+    Extension(db): Extension<DatabaseConnection>,
     Path(uuid): Path<Uuid>,
     Json(data): Json<UserUpdateModel>,
 ) -> impl IntoResponse {
-    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
-        .await
-        .unwrap();
-
     let mut user: entity::user::ActiveModel = entity::user::Entity::find()
         .filter(entity::user::Column::Uuid.eq(uuid))
         .one(&db)
@@ -25,7 +24,7 @@ pub async fn update_user(
 
     user.name = Set(data.name);
     user.clone().update(&db).await.unwrap();
-    db.close().await.unwrap();
+    // db.close().await.unwrap();
 
     // since we cannot convert `ActiveModel` to `Model`, we do that manually
     let user = user.clone();
@@ -40,11 +39,10 @@ pub async fn update_user(
     (StatusCode::ACCEPTED, Json(response))
 }
 
-pub async fn delete_user(Path(uuid): Path<Uuid>) -> impl IntoResponse {
-    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
-        .await
-        .unwrap();
-
+pub async fn delete_user(
+    Extension(db): Extension<DatabaseConnection>,
+    Path(uuid): Path<Uuid>,
+) -> impl IntoResponse {
     let user = entity::user::Entity::find()
         .filter(entity::user::Column::Uuid.eq(uuid))
         .one(&db)
@@ -56,16 +54,12 @@ pub async fn delete_user(Path(uuid): Path<Uuid>) -> impl IntoResponse {
         .exec(&db)
         .await
         .unwrap();
-    db.close().await.unwrap();
+    // db.close().await.unwrap();
 
     (StatusCode::OK, Json("deleted"))
 }
 
-pub async fn get_users() -> impl IntoResponse {
-    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
-        .await
-        .unwrap();
-
+pub async fn get_users(Extension(db): Extension<DatabaseConnection>) -> impl IntoResponse {
     let users: Vec<User> = entity::user::Entity::find()
         .all(&db)
         .await
@@ -80,6 +74,6 @@ pub async fn get_users() -> impl IntoResponse {
         })
         .collect();
 
-    db.close().await.unwrap();
+    // db.close().await.unwrap();
     (StatusCode::OK, Json(users))
 }

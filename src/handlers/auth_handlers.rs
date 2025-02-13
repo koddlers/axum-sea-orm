@@ -1,18 +1,19 @@
 use crate::models::user::{User, UserCreateModel, UserLoginModel};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
+use axum::{Extension, Json};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, ColumnTrait, Database, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+};
 use sea_query::Condition;
 use uuid::Uuid;
 
-pub async fn create_user(Json(data): Json<UserCreateModel>) -> impl IntoResponse {
-    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
-        .await
-        .unwrap();
-
+pub async fn create_user(
+    Extension(db): Extension<DatabaseConnection>,
+    Json(data): Json<UserCreateModel>,
+) -> impl IntoResponse {
     let user = entity::user::ActiveModel {
         id: Default::default(),
         name: Set(data.name),
@@ -23,7 +24,7 @@ pub async fn create_user(Json(data): Json<UserCreateModel>) -> impl IntoResponse
     };
 
     let data = user.insert(&db).await.unwrap();
-    db.close().await.unwrap();
+    // db.close().await.unwrap();
 
     let user = User {
         name: data.name,
@@ -36,11 +37,10 @@ pub async fn create_user(Json(data): Json<UserCreateModel>) -> impl IntoResponse
     (StatusCode::ACCEPTED, Json(user))
 }
 
-pub async fn login_user(Json(data): Json<UserLoginModel>) -> impl IntoResponse {
-    let db = Database::connect("postgres://postgres:bloodyroots@localhost/axum-fullstack")
-        .await
-        .unwrap();
-
+pub async fn login_user(
+    Extension(db): Extension<DatabaseConnection>,
+    Json(data): Json<UserLoginModel>,
+) -> impl IntoResponse {
     let user = entity::user::Entity::find()
         .filter(
             Condition::all()
@@ -60,6 +60,6 @@ pub async fn login_user(Json(data): Json<UserLoginModel>) -> impl IntoResponse {
         created_at: user.created_at,
     };
 
-    db.close().await.unwrap();
+    // db.close().await.unwrap();
     (StatusCode::ACCEPTED, Json(response))
 }
