@@ -52,21 +52,33 @@ pub async fn update_user(
 pub async fn delete_user(
     Extension(db): Extension<DatabaseConnection>,
     Path(uuid): Path<Uuid>,
-) -> impl IntoResponse {
+) -> Result<(), APIError> {
     let user = entity::user::Entity::find()
         .filter(entity::user::Column::Uuid.eq(uuid))
         .one(&db)
         .await
-        .unwrap()
-        .unwrap();
+        .map_err(|err| APIError {
+            message: err.to_string(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        })?
+        .ok_or(APIError {
+            message: "User not Found".to_string(),
+            status_code: StatusCode::NOT_FOUND,
+            error_code: Some(44),
+        })?;
 
     entity::user::Entity::delete_by_id(user.id)
         .exec(&db)
         .await
-        .unwrap();
-    // db.close().await.unwrap();
+        .map_err(|err| APIError {
+            message: err.to_string(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        })?;
 
-    (StatusCode::OK, Json("deleted"))
+    // TODO: return a json with success message
+    Ok(())
 }
 
 pub async fn get_users(Extension(db): Extension<DatabaseConnection>) -> impl IntoResponse {
