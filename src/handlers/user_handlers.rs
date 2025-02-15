@@ -17,8 +17,16 @@ pub async fn update_user(
         .filter(entity::user::Column::Uuid.eq(uuid))
         .one(&db)
         .await
-        .unwrap()
-        .unwrap()
+        .map_err(|err| APIError {
+            message: err.to_string(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        })?
+        .ok_or(APIError {
+            message: "User not Found".to_string(),
+            status_code: StatusCode::NOT_FOUND,
+            error_code: Some(44),
+        })?
         .into();
 
     user.name = Set(data.name);
