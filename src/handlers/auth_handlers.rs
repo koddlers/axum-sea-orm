@@ -1,40 +1,62 @@
 use crate::models::user::{User, UserCreateModel, UserLoginModel};
+use crate::utils::errors::APIError;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use sea_query::Condition;
 use uuid::Uuid;
 
 pub async fn create_user(
     Extension(db): Extension<DatabaseConnection>,
     Json(data): Json<UserCreateModel>,
-) -> impl IntoResponse {
-    let user = entity::user::ActiveModel {
-        id: Default::default(),
-        name: Set(data.name),
-        email: Set(data.email),
-        password: Set(data.password),
-        uuid: Set(Uuid::new_v4()),
-        created_at: Set(Utc::now().naive_utc()),
-    };
+) -> Result<Json<User>, APIError> {
+    let user = entity::user::Entity::find()
+        .filter(entity::user::Column::Email.eq(data.email.clone()))
+        .one(&db)
+        .await
+        .map_err(|err| APIError {
+            message: err.to_string(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        })?;
 
-    let data = user.insert(&db).await.unwrap();
-    // db.close().await.unwrap();
+    match user {
+        None => {
+            let new_user = entity::user::ActiveModel {
+                id: Default::default(),
+                name: Set(data.name),
+                email: Set(data.email),
+                password: Set(data.password),
+                uuid: Set(Uuid::new_v4()),
+                created_at: Set(Utc::now().naive_utc()),
+            };
 
-    let user = User {
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        uuid: data.uuid,
-        created_at: data.created_at,
-    };
+            new_user.clone().insert(&db).await.map_err(|err| APIError {
+                message: err.to_string(),
+                status_code: StatusCode::CONFLICT,
+                error_code: Some(40),
+            })?;
 
-    (StatusCode::ACCEPTED, Json(user))
+            // TODO: implement a serializer on `User`
+            let response = User {
+                name: new_user.name.clone().unwrap(),
+                email: new_user.email.clone().unwrap(),
+                password: new_user.password.clone().unwrap(),
+                uuid: new_user.uuid.clone().unwrap(),
+                created_at: new_user.created_at.clone().unwrap(),
+            };
+
+            Ok(Json(response))
+        }
+        Some(existing_user) => Err(APIError {
+            message: format!("User {:?} exists", existing_user.name),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        }),
+    }
 }
 
 pub async fn login_user(
