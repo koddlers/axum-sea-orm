@@ -2,7 +2,6 @@ use crate::models::user::{User, UserUpdateModel};
 use crate::utils::errors::APIError;
 use axum::extract::Path;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
@@ -81,11 +80,17 @@ pub async fn delete_user(
     Ok(())
 }
 
-pub async fn get_users(Extension(db): Extension<DatabaseConnection>) -> impl IntoResponse {
+pub async fn get_users(
+    Extension(db): Extension<DatabaseConnection>,
+) -> Result<Json<Vec<User>>, APIError> {
     let users: Vec<User> = entity::user::Entity::find()
         .all(&db)
         .await
-        .unwrap()
+        .map_err(|err| APIError {
+            message: err.to_string(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        })?
         .into_iter()
         .map(|user| User {
             name: user.name,
@@ -96,6 +101,5 @@ pub async fn get_users(Extension(db): Extension<DatabaseConnection>) -> impl Int
         })
         .collect();
 
-    // db.close().await.unwrap();
-    (StatusCode::OK, Json(users))
+    Ok(Json(users))
 }
