@@ -1,7 +1,6 @@
 use crate::models::user::{User, UserCreateModel, UserLoginModel};
 use crate::utils::errors::APIError;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
@@ -62,7 +61,7 @@ pub async fn create_user(
 pub async fn login_user(
     Extension(db): Extension<DatabaseConnection>,
     Json(data): Json<UserLoginModel>,
-) -> impl IntoResponse {
+) -> Result<Json<User>, APIError> {
     let user = entity::user::Entity::find()
         .filter(
             Condition::all()
@@ -71,8 +70,16 @@ pub async fn login_user(
         )
         .one(&db)
         .await
-        .unwrap()
-        .unwrap();
+        .map_err(|err| APIError {
+            message: err.to_string(),
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            error_code: Some(50),
+        })?
+        .ok_or(APIError {
+            message: "User not Found".to_string(),
+            status_code: StatusCode::NOT_FOUND,
+            error_code: Some(44),
+        })?;
 
     let response = User {
         name: user.name,
@@ -82,6 +89,5 @@ pub async fn login_user(
         created_at: user.created_at,
     };
 
-    // db.close().await.unwrap();
-    (StatusCode::ACCEPTED, Json(response))
+    Ok(Json(response))
 }
