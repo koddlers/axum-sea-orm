@@ -14,9 +14,11 @@ chrono = "0.4.39"
 sea-orm = { version = "1.1.4", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 tokio = { version = "1.43.0", features = ["full"] }
 uuid = { version = "1.13.1", features = ["v4"] }
-serde = "1.0.217"
+serde = { version = "1.0.217", features = ["derive"] }
 sea-query = "0.32.1"
 tower-http = { version = "0.6.2", features = ["cors"] }
 dotenv = "0.15.0"
 lazy_static = "1.5.0"
 serde_json = "1.0.138"
+jsonwebtoken = "9.3.1"
+headers = "0.4.0"
