@@ -28,3 +28,8 @@ pub struct UserLoginModel {
 pub struct UserUpdateModel {
     pub name: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct LoginResponse {
+    pub token: String,
+}
