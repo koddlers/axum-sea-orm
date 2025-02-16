@@ -4,7 +4,8 @@ mod routes;
 mod utils;
 
 use axum;
-use axum::{Extension, Router};
+use axum::body::Body;
+use axum::{middleware, Extension, Router};
 use sea_orm::Database;
 
 #[tokio::main]
@@ -19,8 +20,9 @@ async fn server() {
         .expect("FATAL: Failed to connect to database");
 
     let router = Router::new()
-        .merge(routes::auth_router::auth_routes())
         .merge(routes::user_routes::user_routes())
+        .route_layer(middleware::from_fn(utils::guard::guard::<Body>))
+        .merge(routes::auth_router::auth_routes())
         .layer(Extension(db));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
