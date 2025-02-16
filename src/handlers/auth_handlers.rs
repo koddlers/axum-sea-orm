@@ -1,5 +1,6 @@
-use crate::models::user::{User, UserCreateModel, UserLoginModel};
+use crate::models::user::{LoginResponse, User, UserCreateModel, UserLoginModel};
 use crate::utils::errors::APIError;
+use crate::utils::jwt::encode_jwt;
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use chrono::Utc;
@@ -61,7 +62,7 @@ pub async fn create_user(
 pub async fn login_user(
     Extension(db): Extension<DatabaseConnection>,
     Json(data): Json<UserLoginModel>,
-) -> Result<Json<User>, APIError> {
+) -> Result<Json<LoginResponse>, APIError> {
     let user = entity::user::Entity::find()
         .filter(
             Condition::all()
@@ -81,13 +82,11 @@ pub async fn login_user(
             error_code: Some(44),
         })?;
 
-    let response = User {
-        name: user.name,
-        email: user.email,
-        password: user.password,
-        uuid: user.uuid,
-        created_at: user.created_at,
-    };
+    let token = encode_jwt(user.email).map_err(|_| APIError {
+        message: "login failed".to_string(),
+        status_code: StatusCode::UNAUTHORIZED,
+        error_code: Some(41),
+    })?;
 
-    Ok(Json(response))
+    Ok(Json(LoginResponse { token }))
 }
