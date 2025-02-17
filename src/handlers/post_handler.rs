@@ -6,7 +6,11 @@ use axum::http::StatusCode;
 use axum::{Extension, Json};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+};
+use sea_query::JoinType;
+use serde_json::Value;
 use uuid::Uuid;
 
 pub async fn add_post(
@@ -51,10 +55,20 @@ pub async fn add_post(
 pub async fn get_post(
     Extension(db): Extension<DatabaseConnection>,
     Path(uuid): Path<Uuid>,
-) -> Result<Json<Post>, APIError> {
-    let post: Post = entity::post::Entity::find()
+) -> Result<Json<Value>, APIError> {
+    let post = entity::post::Entity::find()
         .filter(entity::post::Column::Uuid.eq(uuid))
-        .find_also_related(entity::user::Entity)
+        // .find_also_related(entity::user::Entity)
+        .column_as(entity::user::Column::Name, "author")
+        .column_as(entity::user::Column::Uuid, "author uuid")
+        .join(
+            JoinType::LeftJoin,
+            entity::post::Entity::belongs_to(entity::user::Entity)
+                .from(entity::post::Column::UserId)
+                .to(entity::user::Column::Id)
+                .into(),
+        )
+        .into_json()
         .one(&db)
         .await
         .map_err(|_| APIError {
@@ -66,8 +80,7 @@ pub async fn get_post(
             message: "Post not Found".to_string(),
             status_code: StatusCode::NOT_FOUND,
             error_code: Some(44),
-        })?
-        .into();
+        })?;
 
     Ok(Json(post))
 }
