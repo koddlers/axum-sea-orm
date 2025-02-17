@@ -11,6 +11,13 @@ pub struct User {
     pub created_at: NaiveDateTime,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UserRelationModel {
+    pub name: String,
+    pub email: String,
+    pub uuid: Uuid,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct UserCreateModel {
     pub name: String,
