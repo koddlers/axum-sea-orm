@@ -1,5 +1,5 @@
+use crate::handlers::post_handler::{add_post, upload_image};
 use crate::handlers::user_handlers::{delete_user, get_users, update_user};
-use crate::handlers::post_handler::add_post;
 use axum::http::Method;
 use axum::routing::{delete, get, post, put};
 use axum::Router;
@@ -15,5 +15,6 @@ pub fn user_routes() -> Router {
         .route("/api/user/{uuid}/delete", delete(delete_user))
         .route("/api/users", get(get_users))
         .route("/api/user/posts", post(add_post))
+        .route("/api/user/posts/{uuid}/image", post(upload_image))
         .layer(cors)
 }

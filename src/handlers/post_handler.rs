@@ -1,16 +1,20 @@
 use crate::models::post::{Post, PostCreateModel};
 use crate::models::user::UserRelationModel;
 use crate::utils::errors::APIError;
-use axum::extract::Path;
+use axum::extract::{Multipart, Path};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    QuerySelect,
 };
+use sea_query::Condition;
 use sea_query::JoinType;
 use serde_json::Value;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 pub async fn add_post(
@@ -83,4 +87,47 @@ pub async fn get_post(
         })?;
 
     Ok(Json(post))
+}
+
+pub async fn upload_image(
+    Extension(db): Extension<DatabaseConnection>,
+    Extension(identity): Extension<entity::user::Model>,
+    Path(uuid): Path<Uuid>,
+    mut multipart: Multipart,
+) -> Result<(), APIError> {
+    while let Some(field) = multipart.next_field().await.unwrap() {
+        let mut post = entity::post::Entity::find()
+            .filter(
+                Condition::all()
+                    .add(entity::post::Column::Uuid.eq(uuid))
+                    .add(entity::post::Column::UserId.eq(identity.id)),
+            )
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let image_name = Utc::now().timestamp();
+        // TODO: handle the possible error for `unwrap()`
+        let field_name = field.name().unwrap().to_string();
+        if field_name == "image" {
+            // TODO: handle the possible error for `unwrap()`
+            let data = field.bytes().await.unwrap();
+            let mut file = File::create(format!("./public/uploads/{}.jpg", image_name))
+                .await
+                .unwrap();
+            // TODO: handle the possible error for `unwrap()`
+            file.write(&data).await.unwrap();
+
+            let mut post_model = post.into_active_model();
+            post_model.image = Set(format!("./public/uploads/{}.jpg", image_name));
+            post_model.update(&db).await.unwrap();
+        } else {
+            // TODO: handle the possible error for `unwrap()`
+            let data = field.text().await.unwrap();
+            println!("field: {}, \tvalue: {}", field_name, data);
+        }
+    }
+
+    Ok(())
 }

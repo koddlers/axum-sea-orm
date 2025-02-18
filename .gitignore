@@ -22,3 +22,6 @@ Cargo.lock
 
 ### dotenv files
 .env
+
+### Custom file and folders
+public/**
