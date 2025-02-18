@@ -17,6 +17,14 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
+use std::io::BufWriter;
+
+use image::codecs::png::PngEncoder;
+use image::{ImageEncoder, ImageReader};
+
+use fast_image_resize::images::Image;
+use fast_image_resize::{IntoImageView, Resizer};
+
 pub async fn add_post(
     Extension(db): Extension<DatabaseConnection>,
     Extension(identity): Extension<entity::user::Model>,
@@ -96,31 +104,62 @@ pub async fn upload_image(
     mut multipart: Multipart,
 ) -> Result<(), APIError> {
     while let Some(field) = multipart.next_field().await.unwrap() {
-        let mut post = entity::post::Entity::find()
-            .filter(
-                Condition::all()
-                    .add(entity::post::Column::Uuid.eq(uuid))
-                    .add(entity::post::Column::UserId.eq(identity.id)),
-            )
-            .one(&db)
-            .await
-            .unwrap()
-            .unwrap();
-
-        let image_name = Utc::now().timestamp();
         // TODO: handle the possible error for `unwrap()`
         let field_name = field.name().unwrap().to_string();
         if field_name == "image" {
+            let post = entity::post::Entity::find()
+                .filter(
+                    Condition::all()
+                        .add(entity::post::Column::Uuid.eq(uuid))
+                        .add(entity::post::Column::UserId.eq(identity.id)),
+                )
+                .one(&db)
+                .await
+                .unwrap()
+                .unwrap();
+
+            let image_name = Utc::now().timestamp();
             // TODO: handle the possible error for `unwrap()`
             let data = field.bytes().await.unwrap();
-            let mut file = File::create(format!("./public/uploads/{}.jpg", image_name))
+
+            // Read source image from file
+            let src_image = ImageReader::new(std::io::Cursor::new(data))
+                .with_guessed_format()
+                .unwrap()
+                .decode()
+                .unwrap();
+
+            // Create container for data of destination image
+            let dst_width = 480;
+            let dst_height = 360;
+            let mut dst_image = Image::new(dst_width, dst_height, src_image.pixel_type().unwrap());
+
+            // Create Resizer instance and resize source image
+            // into buffer of destination image
+            let mut resizer = Resizer::new();
+            resizer.resize(&src_image, &mut dst_image, None).unwrap();
+
+            // Write destination image as PNG-file
+            let mut result_buf = BufWriter::new(Vec::new());
+            PngEncoder::new(&mut result_buf)
+                .write_image(
+                    dst_image.buffer(),
+                    dst_width,
+                    dst_height,
+                    src_image.color().into(),
+                )
+                .unwrap();
+
+            let image_bytes = result_buf.into_inner().unwrap();
+            // TODO: add image path to `constants`
+            let mut file = File::create(format!("./public/uploads/{}.png", image_name))
                 .await
                 .unwrap();
             // TODO: handle the possible error for `unwrap()`
-            file.write(&data).await.unwrap();
+            file.write(&image_bytes).await.unwrap();
 
             let mut post_model = post.into_active_model();
-            post_model.image = Set(format!("./public/uploads/{}.jpg", image_name));
+            post_model.image = Set(format!("./public/uploads/{}.png", image_name));
             post_model.update(&db).await.unwrap();
         } else {
             // TODO: handle the possible error for `unwrap()`
